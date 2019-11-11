@@ -6,7 +6,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 from scipy import io as sio
-from .vgg_dag_face import vgg_dag_face
 
 
 def get_vgg16_with_vggfaces_wt(weight_path='../models/vgg_face_dag.pth'):
@@ -396,15 +395,13 @@ class TotalLoss(nn.Module):
 class MMSTN(nn.Module):
     def __init__(self, vgg_faces_weight_path=None, tutte_embedding_path=None):
         super(MMSTN, self).__init__()
-        self.vgg_localizer = vgg_dag_face(vgg_faces_weight_path)
+        self.vgg_localizer = get_vgg16_with_vggfaces_wt(vgg_faces_weight_path)
         # LR of weight: x4, LR of bias: x8
-        self.vgg_localizer.fc8 = nn.Conv2d(
-            4096, 16, kernel_size=[1, 1], stride=(1, 1))
-        nn.init.xavier_normal_(self.vgg_localizer.fc8.weight)
+        self.theta = nn.Linear(4096, 16)
+        nn.init.xavier_normal_(self.theta.weight)
         with torch.no_grad():
-            self.vgg_localizer.fc8.weight = nn.Parameter(
-                self.vgg_localizer.fc8.weight * 0.001)
-            self.vgg_localizer.fc8.bias[3:5] = 112
+            self.theta.weight = nn.Parameter(self.theta.weight * 0.001)
+            self.theta.bias[3:5] = 112
         # 21 Landmark points for Basel Face Model res=112 (AFLW annotation)
         # 1-6: left to right eyebrows
         # 7-12: left to right eyes
@@ -431,7 +428,8 @@ class MMSTN(nn.Module):
         self.visibility_layer = Visibility()
 
     def forward(self, input):
-        x = self.vgg_localizer(input).squeeze()
+        x = self.vgg_localizer(input)
+        x = self.theta(x)
         alpha, r, t, logs = self.split_layer(x)
         X = self.model_3d(alpha)
         R = self.r2R_layer(r)
@@ -451,7 +449,7 @@ class MMSTN(nn.Module):
 
 if __name__ == "__main__":
 
-    n = MMSTN('../models/vgg_dag_face.pth', '../models/model.mat')
+    n = MMSTN('../models/vgg_face_dag.pth', '../models/model.mat')
     loss_layer = TotalLoss()
     # print(n)
     # # print(n.theta.weight, n.theta.bias)
@@ -460,9 +458,7 @@ if __name__ == "__main__":
     sel, mask, alpha, predgrid = n(inp)
     loss = loss_layer(sel, out, alpha, predgrid)
     print(loss)
-    print(list(list(n.children())[0].children())[-1])
-    minus_theta = list(list(n.children())[0].children())[:-1] + list(n.children())[1:]
-    print(minus_theta)
+    minus_theta = [list(n.children())[0]] + list(n.children())[2:]
     print([x.parameters() for x in minus_theta])
     loss[0].backward()
     # print([x.shape for x in otp])

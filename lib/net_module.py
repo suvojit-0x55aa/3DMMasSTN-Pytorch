@@ -16,6 +16,10 @@ class Net3DMMSTN(pl.LightningModule):
             tutte_embedding_path=self.hparams.tutte_emb_path)
         self.criterion = TotalLoss()
         self.last_val_images = None
+        self.matlab_vgg_mean = (129.1863, 104.7624, 93.5940)
+        self.pytorch_vgg_mean = (131.4538, 103.9875, 91.4623)
+        self.oxford_vgg_mean = (131.45376586914062, 103.98748016357422,
+                                91.46234893798828)
 
     def forward(self, input):
         return self.net.forward(input)
@@ -36,19 +40,34 @@ class Net3DMMSTN(pl.LightningModule):
         return {'loss': loss, 'log': log_dict}
 
     def configure_optimizers(self):
+        minus_theta = list(list(
+            self.net.children())[0].children())[:-1] + list(
+                self.net.children())[1:]
+        param_list = [{'params': m.parameters()} for m in minus_theta]
+        param_list.append({
+            "params": self.net.vgg_localizer.fc8.weight,
+            "lr": self.hparams.learning_rate * 4
+        })
+        param_list.append({
+            "params": self.net.vgg_localizer.fc8.bias,
+            "lr": self.hparams.learning_rate * 8
+        })
+
+        return torch.optim.SGD(param_list, lr=self.hparams.learning_rate)
+
+    def configure_optimizers_not_used(self):
         minus_theta = [list(self.net.children())[0]] + list(
             self.net.children())[2:]
         param_list = [{'params': m.parameters()} for m in minus_theta]
         param_list.append({
-            "params": self.net.theta.weight,
+            "params": self.net.fc8.weight,
             "lr": self.hparams.learning_rate * 4
         })
         param_list.append({
-            "params": self.net.theta.bias,
+            "params": self.net.fc8.bias,
             "lr": self.hparams.learning_rate * 8
         })
-        # return torch.optim.Adam(
-        #     self.net.parameters(), lr=self.hparams.learning_rate)
+
         return torch.optim.SGD(param_list, lr=self.hparams.learning_rate)
 
     def validation_step(self, batch, batch_nb):
@@ -102,11 +121,9 @@ class Net3DMMSTN(pl.LightningModule):
     @pl.data_loader
     def train_dataloader(self):
         composed = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((129.1863, 104.7624, 93.5940),
-                                 (1.0, 1.0, 1.0))
+            transforms.ToTensor(), lambda x: x * 255.0,
+            transforms.Normalize(self.oxford_vgg_mean, (1.0, 1.0, 1.0))
         ])
-        # 131.4538, 103.9875, 91.4623
 
         aflw = AFLWDataset(
             self.hparams.dataset_csv,
@@ -125,9 +142,8 @@ class Net3DMMSTN(pl.LightningModule):
     @pl.data_loader
     def val_dataloader(self):
         composed = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize((129.1863, 104.7624, 93.5940),
-                                 (1.0, 1.0, 1.0))
+            transforms.ToTensor(), lambda x: x * 255.0,
+            transforms.Normalize(self.oxford_vgg_mean, (1.0, 1.0, 1.0))
         ])
 
         aflw = AFLWDataset(

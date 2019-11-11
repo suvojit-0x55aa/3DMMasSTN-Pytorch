@@ -12,7 +12,9 @@ DATA_CSV=$WRK_DIR/data/aflw_cropped_label.csv
 
 # Pretrained Model Paths
 TUTTE_EMB_PATH=$WRK_DIR/models/model.mat
-VGG_FACES_WEIGHT=$WRK_DIR/models/vgg_face_dag.pth
+# VGG_FACES_WEIGHT=$WRK_DIR/models/vgg_face_dag.pth
+# Converted from Oxford VGG-Face
+VGG_FACES_WEIGHT=$WRK_DIR/models/vgg_dag_face.pth
 
 python train_3dmmstn.py \
     --learning_rate=1e-10 \

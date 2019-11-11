@@ -29,6 +29,8 @@ if __name__ == "__main__":
     model = Net3DMMSTN(hparams)
     trainer = Trainer(
         early_stop_callback=None,
+        track_grad_norm=2,
+        print_nan_grads=True,
         weights_summary='full',
         default_save_path=hparams.checkpoint_path,
         max_nb_epochs=hparams.max_nb_epochs,
