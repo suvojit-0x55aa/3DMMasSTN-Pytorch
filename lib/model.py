@@ -411,9 +411,13 @@ class MMSTN(nn.Module):
         # 13-17: left ear - nose - right ear
         # 18-20: mouth
         # 21: chin
+        # self.idx = torch.tensor([
+        #     2489, 2279, 2178, 2191, 2314, 2552, 3283, 3177, 3182, 3203, 3208,
+        #     3326, 7177, 4979, 4536, 4990, 7272, 6880, 6664, 6897, 9128
+        # ])
         self.idx = torch.tensor([
-            2489, 2279, 2178, 2191, 2314, 2552, 3283, 3177, 3182, 3203, 3208,
-            3326, 7177, 4979, 4536, 4990, 7272, 6880, 6664, 6897, 9128
+            2488, 2278, 2177, 2190, 2313, 2551, 3282, 3176, 3181, 3202, 3207,
+            3325, 7176, 4978, 4535, 4989, 7271, 6879, 6663, 6896, 9127
         ])
         self.split_layer = SplitLayer()
         model_vals = sio.loadmat(tutte_embedding_path)
@@ -446,7 +450,7 @@ class MMSTN(nn.Module):
         mask = self.visibility_mask_layer(X_hat)
         predgrid = self.visibility_layer(x, mask)
 
-        return sel, mask, alpha, predgrid
+        return sel, mask, alpha, predgrid, x
 
 
 if __name__ == "__main__":
@@ -461,7 +465,8 @@ if __name__ == "__main__":
     loss = loss_layer(sel, out, alpha, predgrid)
     print(loss)
     print(list(list(n.children())[0].children())[-1])
-    minus_theta = list(list(n.children())[0].children())[:-1] + list(n.children())[1:]
+    minus_theta = list(list(n.children())[0].children())[:-1] + list(
+        n.children())[1:]
     print(minus_theta)
     print([x.parameters() for x in minus_theta])
     loss[0].backward()

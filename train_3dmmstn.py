@@ -30,6 +30,7 @@ if __name__ == "__main__":
     trainer = Trainer(
         early_stop_callback=None,
         track_grad_norm=2,
+        overfit_pct=0.01,
         print_nan_grads=True,
         weights_summary='full',
         default_save_path=hparams.checkpoint_path,

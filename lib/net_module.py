@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from .model import MMSTN, TotalLoss
-from .dataset import AFLWDataset
+from .dataset import AFLWDataset, UnNormalize
 
 
 class Net3DMMSTN(pl.LightningModule):
@@ -20,13 +20,14 @@ class Net3DMMSTN(pl.LightningModule):
         self.pytorch_vgg_mean = (131.4538, 103.9875, 91.4623)
         self.oxford_vgg_mean = (131.45376586914062, 103.98748016357422,
                                 91.46234893798828)
+        self.unorm = UnNormalize(self.oxford_vgg_mean, (1.0, 1.0, 1.0))
 
     def forward(self, input):
         return self.net.forward(input)
 
     def training_step(self, batch, batch_nb):
         input, label = batch
-        sel, mask, alpha, predgrid = self.forward(input)
+        sel, mask, alpha, predgrid, _ = self.forward(input)
         loss, l1, l2, l3, l4 = self.criterion(sel, label, alpha, predgrid)
 
         log_dict = {
@@ -72,7 +73,7 @@ class Net3DMMSTN(pl.LightningModule):
 
     def validation_step(self, batch, batch_nb):
         input, label = batch
-        sel, mask, alpha, predgrid = self.forward(input)
+        sel, mask, alpha, predgrid, _ = self.forward(input)
         loss, l1, l2, l3, l4 = self.criterion(sel, label, alpha, predgrid)
         self.last_val_images = input
 
@@ -89,13 +90,21 @@ class Net3DMMSTN(pl.LightningModule):
     def on_epoch_end(self):
         with torch.no_grad():
             if self.current_epoch % 5 == 0:
-                _, mask, _, predgrid = self.forward(self.last_val_images)
+                _, mask, _, predgrid, premask = self.forward(
+                    self.last_val_images)
 
                 self.logger.experiment.add_images(
-                    'images', self.last_val_images, self.current_epoch)
+                    'images', self.unorm(self.last_val_images),
+                    self.current_epoch)
+                self.logger.experiment.add_histogram(
+                    'input_dist',
+                    self.last_val_images + (self.current_epoch / 5),
+                    self.current_epoch / 5)
+                self.logger.experiment.add_images(
+                    'premask', self.unorm(premask), self.current_epoch)
                 self.logger.experiment.add_images('mask', mask,
                                                   self.current_epoch)
-                self.logger.experiment.add_images('pred', predgrid,
+                self.logger.experiment.add_images('pred', self.unorm(predgrid),
                                                   self.current_epoch)
 
     def validation_end(self, outputs):
