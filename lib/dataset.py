@@ -7,6 +7,7 @@ import pandas as pd
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+from torchvision import transforms
 
 warnings.filterwarnings("ignore")
 
@@ -48,10 +49,10 @@ class AFLWDataset(Dataset):
             5, 4, 3, 2, 1, 0, 11, 10, 9, 8, 7, 6, 16, 15, 14, 13, 12, 19, 18,
             17, 20
         ])
-        flipped_img = image.flip(2)
+        flipped_img = transforms.functional.hflip(image)
         flipped_landmarks = np.copy(landmarks)
         flipped_landmarks[
-            0, :] = (image.size(1) - landmarks[0, :]) * (landmarks[0, :] != 0)
+            0, :] = (image.size[1] - landmarks[0, :]) * (landmarks[0, :] != 0)
         flipped_landmarks = flipped_landmarks[:, lookup]
 
         return flipped_img, flipped_landmarks
@@ -68,7 +69,7 @@ class AFLWDataset(Dataset):
         flip_img, flip_lm = self.sync_flipped_landmarks(image, landmarks)
         if self.transform:
             image = self.transform(image)
-            flip_img = self.transform(image)
+            flip_img = self.transform(flip_img)
         images = torch.stack([image, flip_img], 0)
         labels = torch.stack(
             [torch.FloatTensor(landmarks),
