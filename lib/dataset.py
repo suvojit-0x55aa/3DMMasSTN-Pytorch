@@ -63,11 +63,12 @@ class AFLWDataset(Dataset):
         img_name = os.path.join(self.root_dir,
                                 self.landmarks_frame.loc[idx, 'filepath'])
         image = self.pil_loader(img_name)
-        if self.transform:
-            image = self.transform(image)
         landmarks = np.array([self.landmarks_frame.iloc[idx, 3:66]]).reshape(
             -1, 3).T.astype('float')
         flip_img, flip_lm = self.sync_flipped_landmarks(image, landmarks)
+        if self.transform:
+            image = self.transform(image)
+            flip_img = self.transform(image)
         images = torch.stack([image, flip_img], 0)
         labels = torch.stack(
             [torch.FloatTensor(landmarks),
