@@ -1,10 +1,12 @@
 # 3D Morphable Models as Spatial Transformer Networks
 ## This is a port of [3DMMasSTN](https://github.com/anilbas/3DMMasSTN) in Pytorch
 ### Issues
-- [ ] Loss not converging even for 2 datapoints.
-- [ ] Is [torch.nn.functional.gridsample](https://pytorch.org/docs/stable/nn.functional.html#torch.nn.functional.grid_sample) used in [model](https://github.com/suvojit-0x55aa/3DMMasSTN-Pytorch/blob/a7601c73945d9becc0f9b80be753d2270c545210/lib/model.py#L449) equivalent to MatConvnet's [VL_NNBILIEARSAMPLER](https://github.com/vlfeat/matconvnet/blob/master/matlab/vl_nnbilinearsampler.m)
+- [ ] Loss not converging even for 2 datapoints. [[issue #1](https://github.com/suvojit-0x55aa/3DMMasSTN-Pytorch/issues/1)]
+- [ ] Is [torch.nn.functional.gridsample](https://pytorch.org/docs/stable/nn.functional.html#torch.nn.functional.grid_sample) used in [model](https://github.com/suvojit-0x55aa/3DMMasSTN-Pytorch/blob/a7601c73945d9becc0f9b80be753d2270c545210/lib/model.py#L449) equivalent to MatConvnet's [VL_NNBILIEARSAMPLER](https://github.com/vlfeat/matconvnet/blob/master/matlab/vl_nnbilinearsampler.m) [[issue #1](https://github.com/suvojit-0x55aa/3DMMasSTN-Pytorch/issues/1)]
 - [ ] [Setting some weights manually](https://github.com/suvojit-0x55aa/3DMMasSTN-Pytorch/blob/a7601c73945d9becc0f9b80be753d2270c545210/lib/model.py#L407) affects how network trains [compared to MATLAB](https://github.com/anilbas/3DMMasSTN/blob/c6562b5fda5c2f742a27dc1b4a7ff15ec5e83837/dagnn_3dmmasstn_init.m#L9)
 
+
+The VGG weights can be downloaded [here](https://drive.google.com/file/d/10WW6IRChgHkA0NLmkD0WSKI7Rb-T_2w7/view?usp=sharing) this is converted from the matlab model linked in original repo.
 ## Rest of the README is forked from [anilbas/3DMMasSTN](https://github.com/anilbas/3DMMasSTN)
 #### Update: A simple gradient descent method is added to show how the layers work. Please see the [demo.m](https://github.com/anilbas/3DMMasSTN/blob/master/demo.m).
 
