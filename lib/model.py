@@ -51,7 +51,7 @@ class Model3D(nn.Module):
         self.shapeMU = self.shapeMU.to(input.device)
         self.shapePC = self.shapePC.to(input.device)
         y = self.shapeMU + torch.matmul(self.shapePC, input.t())
-        y = y.reshape(batch_size, 3, self.nverts)
+        y = y.t().reshape(batch_size, self.nverts, 3).transpose(2, 1)
 
         return y
 
@@ -63,12 +63,6 @@ class r2R(nn.Module):
     # r is of size 1 x 1 x 3 x nbatch containing axis angle vectors
     # R is of size 1 x 3 x 3 x nbatch containing rotation matrices
     # Backwards mode:
-    # dCdr = vl_nnr2R(r,dCdR);
-    # dCdR is derivative of the cost function with respect to R and is of
-    # size 1 x 3 x 3 x nbatch
-    # dCdr is derivative of the cost function with respect to r and is of
-    # size 1 x 1 x 3 x nbatch
-
     # Useful reference for formula:
     # [1] Gallego, Guillermo, and Anthony Yezzi. "A compact formula for the
     #     derivative of a 3-D rotation in exponential coordinates." Journal
@@ -78,20 +72,19 @@ class r2R(nn.Module):
         super(r2R, self).__init__()
 
     def forward(self, r):
-        # r = torch.tensor([[-0.2217, 0.2147, 1.2377], [-1.9147, 0.0069, 0.4244],
-        #                   [-0.9241, 0.7353, 0.2943], [0.1321, -1.2391, 0.0494],
-        #                   [1.0528, 1.2237, 2.0284]])
 
         batch_size = r.size(0)
         mask = (r == 0).all(dim=1)
 
-        # R = torch.zeros(batch_size, 3, 3)
         R = torch.zeros(batch_size, 3, 3, device=r.device)
 
         # Fill in the identity cases
         if torch.sum(mask) != 0:
             idx = torch.arange(0, 3)
-            R[mask, idx, idx] = 1
+            R[mask][:, idx, idx] = 1
+
+        if torch.sum(mask) == batch_size:
+            return R
 
         theta = torch.sqrt(torch.sum(r[~mask, :]**2, 1))
         k = r[~mask, :] / theta.unsqueeze(0).t()
@@ -114,32 +107,6 @@ class r2R(nn.Module):
         cos_t = torch.cos(theta).unsqueeze(-1).unsqueeze(-1)
         sin_t = torch.sin(theta).unsqueeze(-1).unsqueeze(-1)
         R[~mask] = I + K * sin_t + (1 - cos_t) * torch.matmul(K, K)
-
-        # print(K)
-
-        # cos_t = torch.cos(theta).unsqueeze(-1).unsqueeze(-1)
-        # sin_t = torch.sin(theta).unsqueeze(-1).unsqueeze(-1)
-
-        # k0 = k[:, 0].unsqueeze(-1).unsqueeze(-1)
-        # k1 = k[:, 1].unsqueeze(-1).unsqueeze(-1)
-        # k2 = k[:, 2].unsqueeze(-1).unsqueeze(-1)
-
-        # R[1 - mask, 0, 0] = (
-        #     (cos_t - 1) * (k1**2) + (cos_t - 1) * (k2**2) + 1).squeeze()
-        # R[1 - mask, 0, 1] = (-k2 * sin_t - k0 * k1 * (cos_t - 1)).squeeze()
-        # R[1 - mask, 0, 2] = (k1 * sin_t - k0 * k2 * (cos_t - 1)).squeeze()
-        # R[1 - mask, 1, 0] = (k2 * sin_t - k0 * k1 * (cos_t - 1)).squeeze()
-        # R[1 - mask, 1, 1] = (
-        #     (cos_t - 1) * (k0**2) + (cos_t - 1) * (k2**2) + 1).squeeze()
-        # R[1 - mask, 1, 2] = (-k0 * sin_t - k1 * k2 * (cos_t - 1)).squeeze()
-        # R[1 - mask, 2, 0] = (-k1 * sin_t - k0 * k2 * (cos_t - 1)).squeeze()
-        # R[1 - mask, 2, 1] = (k0 * sin_t - k1 * k2 * (cos_t - 1)).squeeze()
-        # R[1 - mask, 2, 2] = (
-        #     (cos_t - 1) * k0**2 + (cos_t - 1) * k1**2 + 1).squeeze()
-
-        # print(R_hat)
-        # print(R)
-        # print(torch.allclose(R, R_hat))
 
         return R
 
@@ -165,7 +132,7 @@ class Exponential(nn.Module):
         super(Exponential, self).__init__()
 
     def forward(self, input):
-        return torch.exp(input)
+        return (99 / 100.0)**input
 
 
 class Scale2D(nn.Module):
@@ -205,8 +172,8 @@ class ResampleGrid(nn.Module):
         X0 = X0.reshape(batch_size, 2, grid_dim, grid_dim)
 
         newgrid = torch.empty_like(X0)
-        newgrid[:, 0, :, :] = -X0[:, 1, :, :]
-        newgrid[:, 1, :, :] = X0[:, 0, :, :]
+        newgrid[:, 0, :, :] = X0[:, 0, :, :]
+        newgrid[:, 1, :, :] = -X0[:, 1, :, :]
 
         return newgrid.permute(0, 2, 3, 1)
 
@@ -310,7 +277,6 @@ class VisbilityMask(nn.Module):
         mask = mask.reshape(batch_size, grid_dim, grid_dim)
         mask = torch.repeat_interleave(mask, 3, 0)
         mask = mask.reshape(batch_size, 3, grid_dim, grid_dim).type_as(X)
-        mask = mask.rot90(-1, [2, 3]).flip(3)
 
         return mask
 
@@ -404,17 +370,13 @@ class MMSTN(nn.Module):
         with torch.no_grad():
             self.vgg_localizer.fc8.weight = nn.Parameter(
                 self.vgg_localizer.fc8.weight * 0.001)
-            self.vgg_localizer.fc8.bias[3:5] = 112
+            # self.vgg_localizer.fc8.bias[3:5] = 112
         # 21 Landmark points for Basel Face Model res=112 (AFLW annotation)
         # 1-6: left to right eyebrows
         # 7-12: left to right eyes
         # 13-17: left ear - nose - right ear
         # 18-20: mouth
         # 21: chin
-        # self.idx = torch.tensor([
-        #     2489, 2279, 2178, 2191, 2314, 2552, 3283, 3177, 3182, 3203, 3208,
-        #     3326, 7177, 4979, 4536, 4990, 7272, 6880, 6664, 6897, 9128
-        # ])
         self.idx = torch.tensor([
             2488, 2278, 2177, 2190, 2313, 2551, 3282, 3176, 3181, 3202, 3207,
             3325, 7176, 4978, 4535, 4989, 7271, 6879, 6663, 6896, 9127
@@ -435,8 +397,8 @@ class MMSTN(nn.Module):
         self.visibility_layer = Visibility()
 
     def forward(self, input):
-        x = self.vgg_localizer(input).squeeze()
-        alpha, r, t, logs = self.split_layer(x)
+        input = self.vgg_localizer(input).squeeze()
+        alpha, r, t, logs = self.split_layer(input)
         X = self.model_3d(alpha)
         R = self.r2R_layer(r)
         X_hat = self.rotate_layer(X, R)
