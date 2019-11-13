@@ -397,8 +397,8 @@ class MMSTN(nn.Module):
         self.visibility_layer = Visibility()
 
     def forward(self, input):
-        input = self.vgg_localizer(input).squeeze()
-        alpha, r, t, logs = self.split_layer(input)
+        x = self.vgg_localizer(input).squeeze()
+        alpha, r, t, logs = self.split_layer(x)
         X = self.model_3d(alpha)
         R = self.r2R_layer(r)
         X_hat = self.rotate_layer(X, R)
