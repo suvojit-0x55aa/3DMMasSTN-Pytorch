@@ -66,6 +66,7 @@ class AFLWDataset(Dataset):
         image = self.pil_loader(img_name)
         landmarks = np.array([self.landmarks_frame.iloc[idx, 3:66]]).reshape(
             -1, 3).T.astype('float')
+        # landmarks[:, 1] = image.size[0] - landmarks[:, 1]
         flip_img, flip_lm = self.sync_flipped_landmarks(image, landmarks)
         if self.transform:
             image = self.transform(image)
@@ -100,7 +101,12 @@ class UnNormalize(object):
         Returns:
             Tensor: Normalized image.
         """
-        for t, m, s in zip(tensor, self.mean, self.std):
-            t.mul_(s).add_(m).mul_(1 / 255.0)
-            # The normalize code -> t.sub_(m).div_(s)
-        return tensor
+        x = tensor.new(*tensor.size())
+        x[:,
+          0, :, :] = (tensor[:, 0, :, :] * self.std[0] + self.mean[0]) / 255.0
+        x[:,
+          1, :, :] = (tensor[:, 1, :, :] * self.std[1] + self.mean[1]) / 255.0
+        x[:,
+          2, :, :] = (tensor[:, 2, :, :] * self.std[2] + self.mean[2]) / 255.0
+
+        return x
