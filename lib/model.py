@@ -173,7 +173,7 @@ class ResampleGrid(nn.Module):
 
         newgrid = torch.empty_like(X0)
         newgrid[:, 0, :, :] = X0[:, 0, :, :]
-        newgrid[:, 1, :, :] = -X0[:, 1, :, :]
+        newgrid[:, 1, :, :] = X0[:, 1, :, :]
 
         return newgrid.permute(0, 2, 3, 1)
 
@@ -278,7 +278,7 @@ class VisbilityMask(nn.Module):
         mask = torch.repeat_interleave(mask, 3, 0)
         mask = mask.reshape(batch_size, 3, grid_dim, grid_dim).type_as(X)
 
-        return mask
+        return 1 - mask
 
 
 class Visibility(nn.Module):
