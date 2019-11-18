@@ -1,10 +1,11 @@
 import pytorch_lightning as pl
 import torch
+from matplotlib import pyplot as plt
 from torch.utils.data import DataLoader
 from torchvision import transforms
 
-from .model import MMSTN, TotalLoss
 from .dataset import AFLWDataset, UnNormalize
+from .model import MMSTN, TotalLoss
 
 
 class Net3DMMSTN(pl.LightningModule):
@@ -15,19 +16,19 @@ class Net3DMMSTN(pl.LightningModule):
             vgg_faces_weight_path=self.hparams.vgg_faces_path,
             tutte_embedding_path=self.hparams.tutte_emb_path)
         self.criterion = TotalLoss()
-        self.last_val_images = None
+        self.last_batch = None
         self.matlab_vgg_mean = (129.1863, 104.7624, 93.5940)
         self.pytorch_vgg_mean = (131.4538, 103.9875, 91.4623)
         self.oxford_vgg_mean = (131.45376586914062, 103.98748016357422,
                                 91.46234893798828)
         self.unorm = UnNormalize(self.oxford_vgg_mean, (1.0, 1.0, 1.0))
 
-    def forward(self, input):
-        return self.net.forward(input)
+    def forward(self, input, extra=False):
+        return self.net.forward(input, extra)
 
     def training_step(self, batch, batch_nb):
         input, label = batch
-        sel, mask, alpha, predgrid, _ = self.forward(input)
+        sel, alpha, predgrid = self.forward(input)
         loss, l1, l2, l3, l4 = self.criterion(sel, label, alpha, predgrid)
 
         log_dict = {
@@ -73,9 +74,9 @@ class Net3DMMSTN(pl.LightningModule):
 
     def validation_step(self, batch, batch_nb):
         input, label = batch
-        sel, mask, alpha, predgrid, _ = self.forward(input)
+        sel, alpha, predgrid = self.forward(input)
         loss, l1, l2, l3, l4 = self.criterion(sel, label, alpha, predgrid)
-        self.last_val_images = input
+        self.last_batch = batch
 
         log_dict = {
             'valid/loss': loss,
@@ -87,25 +88,95 @@ class Net3DMMSTN(pl.LightningModule):
 
         return {'val_loss': loss, 'log': log_dict}
 
+    def draw_landmarks(self, images, landmarks):
+
+        batch_size = images.shape[0]
+        landmarks_has_visible = landmarks.shape[1] == 3
+
+        fig, ax = plt.subplots(nrows=1, ncols=batch_size, figsize=(10, 2))
+
+        images = images.transpose(0, 2, 3, 1)
+
+        for i, row in enumerate(ax):
+            row.imshow(images[i])
+            if landmarks_has_visible:
+                mask = landmarks[i, 2] != 0
+                row.scatter(
+                    landmarks[i, 0, mask],
+                    landmarks[i, 1, mask],
+                    marker='.',
+                    c='r')
+            else:
+                row.scatter(
+                    landmarks[i, 0], landmarks[i, 1], marker='.', c='r')
+
+        for r in ax:
+            r.set_yticks([])
+            r.set_xticks([])
+            r.set_xlim(0, images.shape[2])
+            r.set_ylim(images.shape[1], 0)
+
+        plt.tight_layout()
+
+        return fig
+
+    def draw_verts(self, images, verts):
+
+        batch_size = images.shape[0]
+
+        fig, ax = plt.subplots(nrows=1, ncols=batch_size, figsize=(10, 2))
+
+        images = images.transpose(0, 2, 3, 1)
+
+        for i, row in enumerate(ax):
+            row.imshow(images[i])
+            row.scatter(verts[i, 0], verts[i, 1], marker='.', c='r', s=1)
+
+        for r in ax:
+            r.set_yticks([])
+            r.set_xticks([])
+            r.set_xlim(0, images.shape[2])
+            r.set_ylim(images.shape[1], 0)
+
+        plt.tight_layout()
+
+        return fig
+
     def on_epoch_end(self):
+        images, labels = self.last_batch
         with torch.no_grad():
             if self.current_epoch % 5 == 0:
-                _, mask, _, predgrid, premask = self.forward(
-                    self.last_val_images)
+                tensor_dict = self.forward(images, extra=True)
 
-                self.logger.experiment.add_images(
-                    'images', self.unorm(self.last_val_images),
-                    self.current_epoch)
+                self.logger.experiment.add_images('images', self.unorm(images),
+                                                  self.current_epoch)
+                image_np = self.unorm(images).cpu().numpy()
+
                 self.logger.experiment.add_histogram(
-                    'input_dist',
-                    self.last_val_images + (self.current_epoch / 5),
+                    'input_dist', images + (self.current_epoch / 5),
                     self.current_epoch / 5)
                 self.logger.experiment.add_images(
-                    'premask', self.unorm(premask), self.current_epoch)
-                self.logger.experiment.add_images('mask', mask,
+                    'premask', self.unorm(tensor_dict['premask']),
+                    self.current_epoch)
+                self.logger.experiment.add_images('mask', tensor_dict['mask'],
                                                   self.current_epoch)
-                self.logger.experiment.add_images('pred', self.unorm(predgrid),
-                                                  self.current_epoch)
+                self.logger.experiment.add_images(
+                    'pred', self.unorm(tensor_dict['predgrid']),
+                    self.current_epoch)
+
+                self.logger.experiment.add_figure(
+                    'input_landmarks',
+                    self.draw_landmarks(image_np,
+                                        labels.cpu().numpy()))
+                self.logger.experiment.add_figure(
+                    'output_landmarks',
+                    self.draw_landmarks(image_np,
+                                        tensor_dict['sel'].cpu().numpy()))
+
+                self.logger.experiment.add_figure(
+                    '3d_verts',
+                    self.draw_verts(image_np,
+                                    tensor_dict['3d_verts'].cpu().numpy()))
 
     def validation_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()

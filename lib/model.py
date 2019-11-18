@@ -396,7 +396,7 @@ class MMSTN(nn.Module):
         self.visibility_mask_layer = VisbilityMask(faces)
         self.visibility_layer = Visibility()
 
-    def forward(self, input):
+    def forward(self, input, extra=False):
         x = self.vgg_localizer(input).squeeze()
         alpha, r, t, logs = self.split_layer(x)
         X = self.model_3d(alpha)
@@ -410,9 +410,22 @@ class MMSTN(nn.Module):
         x = self.grid_layer(Y_dhat)
         x = F.grid_sample(input, x, align_corners=True)
         mask = self.visibility_mask_layer(X_hat)
+
         predgrid = self.visibility_layer(x, mask)
 
-        return sel, mask, alpha, predgrid, x
+        if extra:
+            tensor_dict = {}
+            tensor_dict['alpha'] = alpha.detach()
+            tensor_dict['3d_verts'] = Y_dhat.detach()
+            tensor_dict['premask'] = x.detach()
+            tensor_dict['mask'] = mask.detach()
+            tensor_dict['alpha'] = alpha.detach()
+            tensor_dict['sel'] = sel.detach()
+            tensor_dict['predgrid'] = predgrid.detach()
+
+            return tensor_dict
+
+        return sel, alpha, predgrid
 
 
 if __name__ == "__main__":
