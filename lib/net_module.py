@@ -150,6 +150,12 @@ class Net3DMMSTN(pl.LightningModule):
 
                 self.logger.experiment.add_images('images', self.unorm(images),
                                                   self.current_epoch)
+
+                self.logger.experiment.add_histogram(
+                    'alpha_dist',
+                    tensor_dict['alpha'] + (self.current_epoch / 5),
+                    self.current_epoch / 5)
+
                 image_np = self.unorm(images).cpu().numpy()
 
                 self.logger.experiment.add_histogram(
