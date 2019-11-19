@@ -130,7 +130,7 @@ class Net3DMMSTN(pl.LightningModule):
 
         for i, row in enumerate(ax):
             row.imshow(images[i])
-            row.scatter(verts[i, 0], verts[i, 1], marker='.', c='r', s=1)
+            row.scatter(verts[i, 0], verts[i, 1], marker=',', c='r', s=1)
 
         for r in ax:
             r.set_yticks([])
@@ -154,13 +154,13 @@ class Net3DMMSTN(pl.LightningModule):
                 self.logger.experiment.add_histogram(
                     'alpha_dist',
                     tensor_dict['alpha'] + (self.current_epoch / 5),
-                    self.current_epoch / 5)
+                    self.current_epoch)
 
                 image_np = self.unorm(images).cpu().numpy()
 
                 self.logger.experiment.add_histogram(
                     'input_dist', images + (self.current_epoch / 5),
-                    self.current_epoch / 5)
+                    self.current_epoch)
                 self.logger.experiment.add_images(
                     'premask', self.unorm(tensor_dict['premask']),
                     self.current_epoch)
@@ -173,16 +173,19 @@ class Net3DMMSTN(pl.LightningModule):
                 self.logger.experiment.add_figure(
                     'input_landmarks',
                     self.draw_landmarks(image_np,
-                                        labels.cpu().numpy()))
+                                        labels.cpu().numpy()),
+                    self.current_epoch)
                 self.logger.experiment.add_figure(
                     'output_landmarks',
                     self.draw_landmarks(image_np,
-                                        tensor_dict['sel'].cpu().numpy()))
+                                        tensor_dict['sel'].cpu().numpy()),
+                    self.current_epoch)
 
                 self.logger.experiment.add_figure(
                     '3d_verts',
                     self.draw_verts(image_np,
-                                    tensor_dict['3d_verts'].cpu().numpy()))
+                                    tensor_dict['3d_verts'].cpu().numpy()),
+                    self.current_epoch)
 
     def validation_end(self, outputs):
         avg_loss = torch.stack([x['val_loss'] for x in outputs]).mean()
@@ -202,7 +205,7 @@ class Net3DMMSTN(pl.LightningModule):
                 [x['log']['valid/symmetry_loss'] for x in outputs]).mean()
         }
 
-        return {'avg_val_loss': avg_loss, 'log': log_dict}
+        return {'val_loss': avg_loss, 'log': log_dict}
 
     @pl.data_loader
     def train_dataloader(self):
